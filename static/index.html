@@ -1,17 +1,94 @@
-<!doctype html><meta charset="utf-8">
+<!doctype html>
+<meta charset="utf-8">
 <title>GenAI demo</title>
 <h2>GenAI demo</h2>
+<div>
+  <strong>Słowa kluczowe:</strong>
+  <span id="keywords">sos, pomocy, ratunku</span>
+</div>
 <input id="msg" placeholder="wpisz tekst (np. 'sos')">
 <button onclick="send()">Analyze</button>
+<button onclick="startVoice()">Mów</button>
+<span id="voiceStatus"></span>
+<p><em>Transkrypcja:</em> <span id="liveText"></span></p>\
 <pre id="out"></pre>
 <script>
-async function send(){
-  const r = await fetch("/analyze",{
+  const KEYWORDS = ["sos", "pomocy", "ratunku"];
+  document.getElementById('keywords').textContent = KEYWORDS.join(", ");
+  async function send() {
+    const r = await fetch("/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: document.getElementById('msg').value })
+    });
+    document.getElementById('out').textContent =
+      JSON.stringify(await r.json(), null, 2);
+  }
+</script>
+
+<script>
+let recognition, listening = false;
+
+function setupSpeech() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    document.getElementById('voiceStatus').textContent = "Web Speech API nieobsługiwane";
+    return null;
+  }
+  const r = new SR();
+  r.lang = "pl-PL";
+  r.continuous = true;
+  r.interimResults = true;
+
+  r.onstart = () => {
+    listening = true;
+    document.getElementById('voiceStatus').textContent = "nasłuchuję…";
+  };
+  r.onend = () => {
+    listening = false;
+    document.getElementById('voiceStatus').textContent = "zatrzymano";
+  };
+  r.onerror = (e) => document.getElementById('voiceStatus').textContent = `błąd: ${e.error}`;
+
+  r.onresult = async (ev) => {
+    const res = ev.results[ev.results.length - 1];
+    const text = res[0].transcript.trim();
+    document.getElementById('liveText').textContent = text;
+
+    // prosta lokalna detekcja słów kluczowych (lowercase)
+    const lower = text.toLowerCase();
+    const hit = KEYWORDS.some(k => lower.includes(k));
+
+    // wysyłaj na backend tylko gdy wynik końcowy (final) lub trafiono keyword
+    if (res.isFinal || hit) {
+      await sendForAnalyze(text);
+    }
+  };
+
+  return r;
+}
+
+async function sendForAnalyze(text){
+  const r = await fetch("/analyze", {
     method:"POST",
     headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({message: document.getElementById('msg').value})
+    body: JSON.stringify({message: text})
   });
-  document.getElementById('out').textContent =
-    JSON.stringify(await r.json(), null, 2);
+  const data = await r.json();
+  document.getElementById('out').textContent = JSON.stringify(data, null, 2);
+}
+
+async function startVoice(){
+  if (!recognition) recognition = setupSpeech();
+  if (!recognition) return;
+  if (listening) { recognition.stop(); return; }
+  document.getElementById('liveText').textContent = "";
+  recognition.start();
+}
+
+// istniejąca funkcja „send” zostaje, ale może korzystać z KEYWORDS jak dotąd
+async function send(){
+  const text = document.getElementById('msg').value;
+  await sendForAnalyze(text);
 }
 </script>
