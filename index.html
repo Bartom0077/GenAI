@@ -1,0 +1,12 @@
+<!doctype html><meta charset="utf-8">
+<h2>GenAI demo</h2>
+<input id="msg" placeholder="wpisz tekst (np. 'sos')">
+<button onclick="send()">Analyze</button>
+<pre id="out"></pre>
+<script>
+async function send(){
+  const r = await fetch("/analyze",{method:"POST",headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({message: document.getElementById('msg').value})});
+  document.getElementById('out').textContent = JSON.stringify(await r.json(), null, 2);
+}
+</script>
