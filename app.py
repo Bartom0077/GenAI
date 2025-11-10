@@ -1,9 +1,21 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from datetime import datetime
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 app = FastAPI()
 
+# === FRONT ===
+# serwuj katalog "static" pod /static (np. /static/app.css)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# serwuj stronę główną (GET /) -> static/index.html
+@app.get("/")
+def root():
+    return FileResponse("static/index.html")
+
+# === API ===
 class AnalyzeReq(BaseModel):
     message: str
     loc: dict | None = None
